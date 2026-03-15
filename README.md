@@ -184,3 +184,8 @@ pip install PyQt6
 **Вход:** `struct Point { x: i32@ }`  
 ![Вывод](screenshots/ex2.png)
 
+### Добавлен FLEX&BISON
+
+![Структура проекта](screenshots/struct.png)
+
+![Пример работы](screenshots/flex.png)

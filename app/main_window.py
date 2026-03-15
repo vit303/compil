@@ -28,6 +28,8 @@ from .output_tab import OutputTab
 from .dialogs import AboutDialog, confirm_exit
 from .i18n import Translator
 
+import subprocess
+import os
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -562,26 +564,81 @@ class MainWindow(QMainWindow):
     def run_analysis(self):
         tab = self.current_editor_tab()
         if not tab:
+            print("Нет активной вкладки")
             return
-
-        self.output_tab.clear()
-        self.errors_tab.clear()
-
+    
         text = tab.get_text()
-
-        # Лексический анализ
+        print(f"Текст для анализа:\n{text[:200]}...")  # первые 200 символов
+    
+        # Лексический анализ (Python)
         analyzer = LexicalAnalyzer()
         tokens, errors = analyzer.analyze(text)
-
-        # Вывод лексем в "Результаты"
+    
+        print(f"Лексер: найдено токенов = {len(tokens)}, ошибок = {len(errors)}")
+        if tokens:
+            print("Первый токен:", tokens[0])
+        if errors:
+            print("Первая ошибка:", errors[0])
+    
+        self.output_tab.clear()
+        self.errors_tab.clear()
+    
+        # Заполняем таблицу лексем
+        print("Вызываем add_tokens...")
         self.output_tab.add_tokens(tokens)
-
-        # Вывод ошибок
+    
+        # Заполняем ошибки
+        print("Вызываем add_error для каждой ошибки...")
         for err in errors:
             self.errors_tab.add_error(err["line"], err["col"], err["message"])
-
+    
+        # Bison-парсер
+        temp_rs = "temp_input.rs"
+        with open(temp_rs, "w", encoding="utf-8") as f:
+            f.write(text)
+    
+        parser_dir = r"D:\python_projects\compil"  # ← твоя папка с rust_parser.exe
+        parser_exe = os.path.join(parser_dir, "rust_parser.exe")
+    
+        try:
+            result = subprocess.run(
+                [parser_exe, temp_rs],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                cwd=parser_dir,
+                timeout=10,
+            )
+    
+            output = result.stdout.strip()
+            errors_bison = result.stderr.strip()
+    
+            print(f"Bison returncode = {result.returncode}")
+            print(f"Bison stdout:\n{output}")
+            print(f"Bison stderr:\n{errors_bison}")
+    
+            if result.returncode == 0 and "успешно распарсена" in output.lower():
+                self.output_tab.append_text("FLEX + BISON: структура распознана успешно")
+                if output:
+                    self.output_tab.append_text(output)
+            else:
+                self.errors_tab.add_error(0, 0, "Синтаксическая ошибка от Bison:")
+                if errors_bison:
+                    self.errors_tab.add_error(0, 0, errors_bison)
+                if output:
+                    self.errors_tab.add_error(0, 0, output)
+    
+        except Exception as e:
+            print(f"Исключение при запуске Bison: {e}")
+            self.errors_tab.add_error(0, 0, f"Не удалось запустить парсер: {str(e)}")
+    
+        finally:
+            if os.path.exists(temp_rs):
+                os.remove(temp_rs)
+    
+        print("Анализ завершён")
         self.statusBar().showMessage(self.tr("Анализ завершён"), 5000)
-
+    
 
     def show_about(self):
         AboutDialog(self).exec()
