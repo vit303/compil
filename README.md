@@ -137,7 +137,7 @@ pip install PyQt6
 
 ## Структура проекта
 
-```text
+\```
 .
 ├── main.py                     # точка входа
 ├── app/
@@ -150,7 +150,7 @@ pip install PyQt6
 │   └── i18n.py                 # локализация
 └── screenshots/                # скриншоты
 
-
+\```
 Разработан лексический анализатор для структур в Rust.  
 Интегрирован в GUI из ЛР1.  
 Вывод: таблица лексем ("Результаты") + таблица ошибок ("Ошибки").  
@@ -178,9 +178,9 @@ pip install PyQt6
 #### 1. Корректный (однострочный)
 **Вход:** `struct Point { x: i32, y: i32 }`
 
-[Вывод](screenshots/ex1.png)
+![Вывод](screenshots/ex1.png)
 
 #### 2. С ошибкой
 **Вход:** `struct Point { x: i32@ }`  
-[Вывод](screenshots/ex2.png)
+![Вывод](screenshots/ex2.png)
 
