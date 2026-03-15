@@ -115,7 +115,7 @@
 - Python 3.8+  
 - PyQt6
 
-```bash
+
 pip install PyQt6
 
 ## Горячие клавиши
