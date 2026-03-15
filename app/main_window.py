@@ -8,14 +8,18 @@ from PyQt6.QtWidgets import (
     QMessageBox,
     QToolBar,
     QSplitter, 
-    QLabel
+    QLabel,
+    QTableWidgetItem
 )
 
 from PyQt6.QtGui import (
     QAction,
     QIcon,
-    QKeySequence
+    QKeySequence,
+    QTextCursor
 )
+
+from .lexical_analyzer import LexicalAnalyzer
 
 from PyQt6.QtCore import Qt
 
@@ -85,17 +89,40 @@ class MainWindow(QMainWindow):
         self.tabs_editor.tabCloseRequested.connect(self.close_tab)
 
         self.tabs_output = QTabWidget()
-        self.output_tab = OutputTab("Результаты", table=False, tr=self.tr)
-        self.errors_tab = OutputTab("Ошибки", table=True, tr=self.tr)
 
-        self.tabs_output.addTab(self.output_tab, self.tr("Результаты"))
-        self.tabs_output.addTab(self.errors_tab, self.tr("Ошибки"))
+        # Только правильные объекты
+        self.output_tab = OutputTab("Результаты", table=True, is_results_table=True, tr=self.tr)
+        self.errors_tab  = OutputTab("Ошибки",   table=True, tr=self.tr)
+
+        self.tabs_output.addTab(self.output_tab,  self.tr("Результаты"))
+        self.tabs_output.addTab(self.errors_tab,  self.tr("Ошибки"))
+
+        # Подключение клика по ошибкам
+        self.errors_tab.table.itemClicked.connect(self.goto_error)
 
         splitter.addWidget(self.tabs_editor)
         splitter.addWidget(self.tabs_output)
         splitter.setSizes([500, 220])
 
         layout.addWidget(splitter)
+
+    def goto_error(self, item: QTableWidgetItem):
+        """Переход к ошибке по клику в таблице."""
+        row = item.row()
+        if row >= len(self.errors_tab.errors):
+            return
+        line, col, _ = self.errors_tab.errors[row]
+        tab = self.current_editor_tab()
+        if tab is None:
+            return
+        editor = tab.editor
+        cursor = editor.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.StartOfDocument)
+        for _ in range(line - 1):
+            cursor.movePosition(QTextCursor.MoveOperation.NextBlock)
+        cursor.movePosition(QTextCursor.MoveOperation.Right, QTextCursor.MoveMode.MoveAnchor, col - 1)
+        editor.setTextCursor(cursor)
+        editor.setFocus()
 
 
     def _create_actions(self):
@@ -402,6 +429,23 @@ class MainWindow(QMainWindow):
                 title += " *"
             self.tabs_editor.setTabText(i, title)
 
+        if hasattr(self, 'output_tab') and self.output_tab.is_results_table:
+            headers = [
+                self.tr("Условный код"),
+                self.tr("Тип лексемы"),
+                self.tr("Лексема"),
+                self.tr("Местоположение")
+            ]
+            self.output_tab.table.setHorizontalHeaderLabels(headers)
+
+        if hasattr(self, 'errors_tab') and self.errors_tab.is_table:
+            headers = [
+                self.tr("Строка"),
+                self.tr("Позиция"),
+                self.tr("Сообщение")
+            ]
+            self.errors_tab.table.setHorizontalHeaderLabels(headers)
+
         self.statusBar().showMessage(self.tr("Готов"))
         self.update_cursor_position()
 
@@ -525,12 +569,16 @@ class MainWindow(QMainWindow):
 
         text = tab.get_text()
 
-        self.output_tab.append_text(self.tr("Исходный код:") + "\n" + "=" * 50)
-        preview = text[:500] + "..." if len(text) > 500 else text
-        self.output_tab.append_text(preview)
-        self.output_tab.append_text("=" * 50)
+        # Лексический анализ
+        analyzer = LexicalAnalyzer()
+        tokens, errors = analyzer.analyze(text)
 
-        self.output_tab.append_text("\n" + self.tr("Анализ завершён"))
+        # Вывод лексем в "Результаты"
+        self.output_tab.add_tokens(tokens)
+
+        # Вывод ошибок
+        for err in errors:
+            self.errors_tab.add_error(err["line"], err["col"], err["message"])
 
         self.statusBar().showMessage(self.tr("Анализ завершён"), 5000)
 

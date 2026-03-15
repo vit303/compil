@@ -1,26 +1,40 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTextEdit, QTableWidget, QTableWidgetItem, QHeaderView
-
-
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QTextEdit, QTableWidget, QTableWidgetItem, QHeaderView
+from typing import List
+from .lexical_analyzer import Token  # Импорт токенов
 
 
 class OutputTab(QWidget):
-    def __init__(self, title="Результаты", table=False, tr=lambda x: x):
+    def __init__(self, title="Результаты", table=False, is_results_table=False, tr=lambda x: x):
         super().__init__()
         self.tr = tr
-        self.is_table = table
+        self.is_table = table or is_results_table
+        self.is_results_table = is_results_table
+        self.errors: List[tuple] = []  # Для навигации по ошибкам
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        if table:
+        if self.is_table:
             self.table = QTableWidget()
-            self.table.setColumnCount(3)
+            self.table.setColumnCount(4 if is_results_table else 3)
             
-            headers = [self.tr("Строка"), self.tr("Позиция"), self.tr("Сообщение")]
+            if is_results_table:
+                headers = [
+                    self.tr("Условный код"),
+                    self.tr("Тип лексемы"),
+                    self.tr("Лексема"),
+                    self.tr("Местоположение")
+                ]
+            else:
+                headers = [
+                    self.tr("Строка"),
+                    self.tr("Позиция"),
+                    self.tr("Сообщение")
+                ]
             self.table.setHorizontalHeaderLabels(headers)
             
-            self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+            stretch_col = 3 if is_results_table else 2
+            self.table.horizontalHeader().setSectionResizeMode(stretch_col, QHeaderView.ResizeMode.Stretch)
             self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
             layout.addWidget(self.table)
         else:
@@ -29,24 +43,44 @@ class OutputTab(QWidget):
             layout.addWidget(self.text_edit)
 
     def append_text(self, text):
+        """Только для текстового вывода (если нужно)."""
         if not self.is_table:
             self.text_edit.append(text)
 
+    def add_tokens(self, tokens: List[Token]):
+        """Заполнение таблицы лексем (Результаты)."""
+        if not self.is_results_table or not hasattr(self, 'table'):
+            return
+        self.table.setRowCount(0)
+        for token in tokens:
+            row = self.table.rowCount()
+            self.table.insertRow(row)
+            self.table.setItem(row, 0, QTableWidgetItem(str(token.code)))
+            self.table.setItem(row, 1, QTableWidgetItem(self.tr(token.type_name)))
+            self.table.setItem(row, 2, QTableWidgetItem(token.lexeme))
+            location = f"{self.tr('строка')} {token.line}, {token.start_col}-{token.end_col}"
+            self.table.setItem(row, 3, QTableWidgetItem(location))
+
     def add_error(self, line: int, col: int, message: str):
-        if self.is_table:
+        """Добавление ошибки в таблицу (Ошибки)."""
+        if self.is_table and not self.is_results_table:
             row = self.table.rowCount()
             self.table.insertRow(row)
             self.table.setItem(row, 0, QTableWidgetItem(str(line)))
             self.table.setItem(row, 1, QTableWidgetItem(str(col)))
             self.table.setItem(row, 2, QTableWidgetItem(message))
+            self.errors.append((line, col, message))
 
     def clear(self):
+        """Очистка таблицы."""
         if self.is_table:
             self.table.setRowCount(0)
+            self.errors = []
         else:
             self.text_edit.clear()
 
     def scale_font(self, delta):
+        """Масштабирование шрифта."""
         if self.is_table:
             font = self.table.font()
             font.setPointSize(max(8, min(72, font.pointSize() + delta)))
