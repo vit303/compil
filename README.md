@@ -185,3 +185,16 @@ pip install PyQt6
 **Вход:** `struct Point { x: i32@ }`  
 ![Вывод](screenshots/ex2.png)
 
+##Разработанная грамматика
+
+1)  <START> -> 'struct' <SPACE>
+2) <SPACE> -> ' ' <NAME_STRUCT>
+3) <NAME_STRUCT> -> letter <NAME_STRUCT_REM>
+4) <NAME_STRUCT_REM> -> letter <NAME_STRUCT_REM> | digit <NAME_STRUCT_REM> | '_' <NAME_STRUCT_REM> | '{' <BODY>
+5) <BODY> -> letter <ID>
+6) <ID> -> letter <ID> | digit <ID> | '_' <ID> | ':' <TYPE>
+7) <TYPE> -> 'String' <END_FIELD> | 'u64' <END_FIELD> | ... 
+8) <END_FIELD> -> ',' <BODY> | '}' <END_BODY>
+9) <END_BODY> -> ';'
+
+![граф автоматной грамматики](screenshots/lr3.png)
