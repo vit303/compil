@@ -90,3 +90,4 @@ class OutputTab(QWidget):
             font = self.text_edit.font()
             font.setPointSize(max(8, min(72, font.pointSize() + delta)))
             self.text_edit.setFont(font)
+

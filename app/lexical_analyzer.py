@@ -340,3 +340,4 @@ class LexicalAnalyzer:
 
         self._append_spelling_errors(tokens, errors)
         return tokens, errors
+
