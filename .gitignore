@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.venv/
+env/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific - Large files
+jdk11.zip
+jdk-11.0.20.1+1/
+
+# Temporary files
+test_antlr_integration.py
+*.interp
+*.tokens
