@@ -25,3 +25,5 @@ jdk-11.0.20.1+1/
 test_antlr_integration.py
 *.interp
 *.tokens
+"*.zip" 
+"jdk-11.0.20.1+1/" 
