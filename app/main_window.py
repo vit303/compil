@@ -20,6 +20,7 @@ from PyQt6.QtGui import (
 )
 
 from .lexical_analyzer import LexicalAnalyzer
+from .syntax_analyzer import SyntaxAnalyzer
 
 from PyQt6.QtCore import Qt
 
@@ -90,14 +91,12 @@ class MainWindow(QMainWindow):
 
         self.tabs_output = QTabWidget()
 
-        # Только правильные объекты
         self.output_tab = OutputTab("Результаты", table=True, is_results_table=True, tr=self.tr)
         self.errors_tab  = OutputTab("Ошибки",   table=True, tr=self.tr)
 
         self.tabs_output.addTab(self.output_tab,  self.tr("Результаты"))
         self.tabs_output.addTab(self.errors_tab,  self.tr("Ошибки"))
 
-        # Подключение клика по ошибкам
         self.errors_tab.table.itemClicked.connect(self.goto_error)
 
         splitter.addWidget(self.tabs_editor)
@@ -107,17 +106,18 @@ class MainWindow(QMainWindow):
         layout.addWidget(splitter)
 
     def goto_error(self, item: QTableWidgetItem):
-        """Переход к ошибке по клику в таблице."""
         row = item.row()
         if row >= len(self.errors_tab.errors):
             return
-        line, col, _ = self.errors_tab.errors[row]
+        err = self.errors_tab.errors[row]
+        line = err["line"]
+        col = err["col"]
         tab = self.current_editor_tab()
         if tab is None:
             return
         editor = tab.editor
         cursor = editor.textCursor()
-        cursor.movePosition(QTextCursor.MoveOperation.StartOfDocument)
+        cursor.movePosition(QTextCursor.MoveOperation.Start)
         for _ in range(line - 1):
             cursor.movePosition(QTextCursor.MoveOperation.NextBlock)
         cursor.movePosition(QTextCursor.MoveOperation.Right, QTextCursor.MoveMode.MoveAnchor, col - 1)
@@ -416,9 +416,9 @@ class MainWindow(QMainWindow):
 
         if hasattr(self, 'errors_tab') and self.errors_tab.is_table:
             headers = [
-                self.tr("Строка"),
-                self.tr("Позиция"),
-                self.tr("Сообщение")
+                self.tr("Неверный фрагмент"),
+                self.tr("Местоположение"),
+                self.tr("Описание ошибки")
             ]
             self.errors_tab.table.setHorizontalHeaderLabels(headers)
 
@@ -440,9 +440,9 @@ class MainWindow(QMainWindow):
 
         if hasattr(self, 'errors_tab') and self.errors_tab.is_table:
             headers = [
-                self.tr("Строка"),
-                self.tr("Позиция"),
-                self.tr("Сообщение")
+                self.tr("Неверный фрагмент"),
+                self.tr("Местоположение"),
+                self.tr("Описание ошибки")
             ]
             self.errors_tab.table.setHorizontalHeaderLabels(headers)
 
@@ -569,18 +569,34 @@ class MainWindow(QMainWindow):
 
         text = tab.get_text()
 
-        # Лексический анализ
         analyzer = LexicalAnalyzer()
-        tokens, errors = analyzer.analyze(text)
+        tokens, lexical_errors = analyzer.analyze(text)
 
-        # Вывод лексем в "Результаты"
+        parser = SyntaxAnalyzer()
+        syntax_errors = parser.analyze(text)
+
         self.output_tab.add_tokens(tokens)
 
-        # Вывод ошибок
-        for err in errors:
-            self.errors_tab.add_error(err["line"], err["col"], err["message"])
+        for err in lexical_errors:
+            self.errors_tab.add_error(
+                err["line"],
+                err["col"],
+                err["message"],
+                fragment=err.get("fragment", "")
+            )
 
-        self.statusBar().showMessage(self.tr("Анализ завершён"), 5000)
+        for err in syntax_errors:
+            self.errors_tab.add_error(
+                err.line,
+                err.col,
+                err.message,
+                fragment=err.fragment
+            )
+
+        if not lexical_errors and not syntax_errors:
+            self.statusBar().showMessage(self.tr("Синтаксических ошибок не обнаружено"), 5000)
+        else:
+            self.statusBar().showMessage(self.tr("Анализ завершён"), 5000)
 
 
     def show_about(self):
@@ -591,7 +607,10 @@ class MainWindow(QMainWindow):
         QMessageBox.information(
             self,
             self.tr("Справка"),
-            self.tr("Учебный редактор для языкового процессора.\nПока — базовый функционал. В будущем добавится парсер.")
+            self.tr(
+                "Учебный редактор для языкового процессора.\n"
+                "Синтаксический анализ: посимвольная грамматика struct (см. правила <START>…<END_BODY>)."
+            )
         )
 
 

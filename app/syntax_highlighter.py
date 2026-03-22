@@ -20,7 +20,6 @@ class SyntaxHighlighter(QSyntaxHighlighter):
             pattern = QRegularExpression(r'\b' + word + r'\b')
             self.highlighting_rules.append((pattern, keyword_format))
 
-        # Строки
         string_format = QTextCharFormat()
         string_format.setForeground(QColor("#ce9178"))
         self.highlighting_rules.append((
