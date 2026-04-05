@@ -205,7 +205,7 @@ pip install PyQt6
 - Навигация: клик по строке таблицы ошибок → курсор в редакторе устанавливается на позицию ошибки.
 
 ###Разработанная грамматика
-
+```
 1) <START> -> 'struct' <SPACE>
 2) <SPACE> -> ' ' <NAME_STRUCT>
 3) <NAME_STRUCT> -> letter <NAME_STRUCT_REM>
@@ -215,7 +215,7 @@ pip install PyQt6
 7) <TYPE> -> 'String' <END_FIELD> | 'u64' <END_FIELD> | 'char' <END_FIELD> | 'f64' <END_FIELD> | 'bool' <END_FIELD>
 8) <END_FIELD> -> ',' <BODY> | '}' <END_BODY>
 9) <END_BODY> -> ';'
-
+```
 ![граф автоматной грамматики](screenshots/lr3.png)
 
 ### Вариант задания (синтаксис)
