@@ -1,3 +1,5 @@
+
+
 class SyntaxErrorEntry:
     def __init__(self, line, col, fragment, message):
         self.line = line
@@ -12,6 +14,7 @@ TYPES = [
     "String", "f64", "f32", "bool", "char", "str",
 ]
 
+KEYWORDS = ["struct"]
 
 class SyntaxAnalyzer:
     def analyze(self, text):
@@ -48,13 +51,16 @@ class SyntaxAnalyzer:
 
         def read_identifier():
             nonlocal i
+            start = i
+
             if not peek().isalpha():
-                return False
+                return None
 
             adv()
             while i < n and (peek().isalnum() or peek() == "_"):
                 adv()
-            return True
+
+            return s[start:i]
 
         def read_type():
             nonlocal i
@@ -72,25 +78,35 @@ class SyntaxAnalyzer:
         # START
         # =======================
         skip_ws()
-
+        flag = True
         if not s.startswith("struct", i):
             err("Ожидалось ключевое слово 'struct'")
+            flag = False
+            while i < n and peek() != "{":
+                adv()
+            
         else:
             for _ in range(6):
                 adv()
-
         # SPACE
-        space_count = 0
-        while peek() == " ":
-            adv()
-            space_count += 1
+        if flag == True:
+            space_count = 0
+            while peek() == " ":
+                adv()
+                space_count += 1
         
-        if space_count == 0:
-            err("Ожидался хотя бы один пробел после 'struct'")
-        
+            if space_count == 0:
+                err("Ожидался хотя бы один пробел после 'struct'")
+
         # NAME_STRUCT
-        if not read_identifier():
+        field_name = read_identifier()
+
+        if field_name is None:
             err("Ожидалось имя структуры")
+        elif field_name in TYPES:
+            err("Имя не может совпадать с типом данных")
+        elif field_name in KEYWORDS:
+            err("Имя структуры не может быть ключевым словом")
 
         # {
         skip_ws()
@@ -106,10 +122,11 @@ class SyntaxAnalyzer:
 
         while i < n and peek() != "}":
 
-            # FIELD NAME
-            if not peek().isalpha():
+            field_name = read_identifier()
+
+            if field_name is None:
                 err("Ожидалось имя поля")
-                # мягкое восстановление
+    # восстановление
                 while i < n and peek() not in ",}":
                     adv()
                 if peek() == ",":
@@ -118,8 +135,8 @@ class SyntaxAnalyzer:
                     continue
                 break
 
-            read_identifier()
-
+            elif field_name in TYPES:
+                err("Имя поля не может совпадать с типом данных")
             skip_ws()
 
             # :
