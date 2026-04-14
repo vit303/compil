@@ -38,7 +38,6 @@ class SyntaxAnalyzer:
         def err(msg, frag=None):
             if frag is None:
                 frag = peek() if i < n else "<EOF>"
-            # Избегаем дублирования ошибок на одной и той же позиции
             if errors and errors[-1].line == line and errors[-1].col == col:
                 return
             errors.append(SyntaxErrorEntry(line, col, frag, msg))
@@ -58,7 +57,6 @@ class SyntaxAnalyzer:
         def read_type():
             for t in TYPES:
                 if s.startswith(t, i):
-                    # проверяем, что это не часть большего идентификатора
                     end = i + len(t)
                     if end < n and (s[end].isalnum() or s[end] == "_"):
                         continue
@@ -67,13 +65,11 @@ class SyntaxAnalyzer:
                     return True
             return False
 
-        # ======================= START =======================
         skip_ws()
 
         # struct
         if not s.startswith("struct", i):
             err("Ожидалось ключевое слово 'struct'", "stkjlruct" if s.startswith("stkjlruct", i) else None)
-            # Пропускаем неправильное слово, чтобы продолжить анализ
             while i < n and not peek().isspace() and peek() not in "{;":
                 adv()
         else:
@@ -82,7 +78,6 @@ class SyntaxAnalyzer:
 
         skip_ws()
 
-        # Имя структуры
         if not read_identifier():
             err("Ожидалось имя структуры")
 
@@ -94,12 +89,11 @@ class SyntaxAnalyzer:
         else:
             err("Ожидался символ '{'")
 
-        # ======================= BODY =======================
         skip_ws()
 
         while i < n and peek() != "}":
             if peek() in ",;}" or not (peek().isalpha() or peek() == "_"):
-                # плохой токен — пытаемся восстановиться
+
                 err("Ожидалось имя поля")
                 while i < n and peek() not in ",:}":
                     adv()
@@ -108,7 +102,7 @@ class SyntaxAnalyzer:
                 skip_ws()
                 continue
 
-            read_identifier()          # имя поля
+            read_identifier()
 
             skip_ws()
 
@@ -119,10 +113,8 @@ class SyntaxAnalyzer:
 
             skip_ws()
 
-            # TYPE — здесь и ловим il64
             if not read_type():
                 err("Ожидался корректный тип поля", "il64" if s.startswith("il64", i) else None)
-                # Пропускаем неправильный тип
                 while i < n and not peek().isspace() and peek() not in ",;}":
                     adv()
 
@@ -135,7 +127,6 @@ class SyntaxAnalyzer:
                 break
             else:
                 err("Ожидалось ',' или '}'")
-                # Восстановление: пропускаем до , или } НО НЕ ПРОГЛАТЫВАЕМ }
                 while i < n and peek() not in ",}":
                     adv()
                 if peek() == ",":
@@ -167,5 +158,4 @@ class SyntaxAnalyzer:
         else:
             err("Ожидался символ ';'")
 
-        # ВАЖНО: всегда возвращаем список
         return errors
