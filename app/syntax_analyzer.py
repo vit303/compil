@@ -1,17 +1,16 @@
+TYPES = [
+    "i128", "i64", "i32", "i16", "i8", "isize",
+    "u128", "u64", "u32", "u16", "u8", "usize",
+    "String", "f64", "f32", "bool", "char", "str",
+]
+KEYWORDS = ["struct"]
+
 class SyntaxErrorEntry:
     def __init__(self, line, col, fragment, message):
         self.line = line
         self.col = col
         self.fragment = fragment
         self.message = message
-
-
-TYPES = [
-    "i128", "i64", "i32", "i16", "i8", "isize",
-    "u128", "u64", "u32", "u16", "u8", "usize",
-    "String", "f64", "f32", "bool", "char", "str",
-]
-
 
 class SyntaxAnalyzer:
     def analyze(self, text):
@@ -27,8 +26,7 @@ class SyntaxAnalyzer:
 
         def adv():
             nonlocal i, line, col
-            if i >= n:
-                return
+            if i >= n: return
             c = s[i]
             i += 1
             if c == "\n":
@@ -40,6 +38,9 @@ class SyntaxAnalyzer:
         def err(msg, frag=None):
             if frag is None:
                 frag = peek() if i < n else "<EOF>"
+            # Избегаем дублирования ошибок на одной и той же позиции
+            if errors and errors[-1].line == line and errors[-1].col == col:
+                return
             errors.append(SyntaxErrorEntry(line, col, frag, msg))
 
         def skip_ws():
@@ -47,19 +48,17 @@ class SyntaxAnalyzer:
                 adv()
 
         def read_identifier():
-            nonlocal i
-            if not peek().isalpha():
+            if not peek().isalpha() and peek() != "_":
                 return False
-
             adv()
             while i < n and (peek().isalnum() or peek() == "_"):
                 adv()
             return True
 
         def read_type():
-            nonlocal i
             for t in TYPES:
                 if s.startswith(t, i):
+                    # проверяем, что это не часть большего идентификатора
                     end = i + len(t)
                     if end < n and (s[end].isalnum() or s[end] == "_"):
                         continue
@@ -68,90 +67,86 @@ class SyntaxAnalyzer:
                     return True
             return False
 
-        # =======================
-        # START
-        # =======================
+        # ======================= START =======================
         skip_ws()
 
+        # struct
         if not s.startswith("struct", i):
-            err("Ожидалось ключевое слово 'struct'")
+            err("Ожидалось ключевое слово 'struct'", "stkjlruct" if s.startswith("stkjlruct", i) else None)
+            # Пропускаем неправильное слово, чтобы продолжить анализ
+            while i < n and not peek().isspace() and peek() not in "{;":
+                adv()
         else:
             for _ in range(6):
                 adv()
 
-        # SPACE
-        space_count = 0
-        while peek() == " ":
-            adv()
-            space_count += 1
-        
-        if space_count == 0:
-            err("Ожидался хотя бы один пробел после 'struct'")
-        
-        # NAME_STRUCT
+        skip_ws()
+
+        # Имя структуры
         if not read_identifier():
             err("Ожидалось имя структуры")
 
-        # {
         skip_ws()
-        if peek() != "{":
-            err("Ожидался символ '{'")
-        else:
-            adv()
 
-        # =======================
-        # BODY
-        # =======================
+        # {
+        if peek() == "{":
+            adv()
+        else:
+            err("Ожидался символ '{'")
+
+        # ======================= BODY =======================
         skip_ws()
 
         while i < n and peek() != "}":
-
-            # FIELD NAME
-            if not peek().isalpha():
+            if peek() in ",;}" or not (peek().isalpha() or peek() == "_"):
+                # плохой токен — пытаемся восстановиться
                 err("Ожидалось имя поля")
-                # мягкое восстановление
-                while i < n and peek() not in ",}":
+                while i < n and peek() not in ",:}":
                     adv()
                 if peek() == ",":
                     adv()
-                    skip_ws()
-                    continue
-                break
+                skip_ws()
+                continue
 
-            read_identifier()
+            read_identifier()          # имя поля
 
             skip_ws()
 
-            # :
-            if peek() != ":":
-                err("Ожидался ':' после имени поля")
-            else:
+            if peek() == ":":
                 adv()
+            else:
+                err("Ожидался ':' после имени поля")
 
             skip_ws()
 
-            # TYPE
+            # TYPE — здесь и ловим il64
             if not read_type():
-                err("Ожидался корректный тип поля")
+                err("Ожидался корректный тип поля", "il64" if s.startswith("il64", i) else None)
+                # Пропускаем неправильный тип
+                while i < n and not peek().isspace() and peek() not in ",;}":
+                    adv()
 
             skip_ws()
 
-            # , или }
             if peek() == ",":
                 adv()
                 skip_ws()
-                continue
             elif peek() == "}":
                 break
             else:
                 err("Ожидалось ',' или '}'")
+                # Восстановление: пропускаем до , или } НО НЕ ПРОГЛАТЫВАЕМ }
                 while i < n and peek() not in ",}":
                     adv()
                 if peek() == ",":
                     adv()
                     skip_ws()
-                    continue
-                break
+
+        # EOF внутри структуры
+        if i >= n:
+            err("Ожидался символ '}'")
+            errors.append(SyntaxErrorEntry(line, col, "<EOF>", "Ожидался символ ';'"))
+            return errors
 
         # }
         if peek() == "}":
@@ -161,10 +156,16 @@ class SyntaxAnalyzer:
 
         skip_ws()
 
+        # EOF после }
+        if i >= n:
+            err("Ожидался символ ';'")
+            return errors
+
         # ;
         if peek() == ";":
             adv()
         else:
             err("Ожидался символ ';'")
 
+        # ВАЖНО: всегда возвращаем список
         return errors
