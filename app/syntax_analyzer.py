@@ -127,7 +127,7 @@ class SyntaxAnalyzer:
                 break
             else:
                 err("Ожидалось ',' или '}'")
-                while i < n and peek() not in ",}":
+                while i < n and peek() not in ",}" and not peek().isalpha() and peek() != "_":
                     adv()
                 if peek() == ",":
                     adv()
