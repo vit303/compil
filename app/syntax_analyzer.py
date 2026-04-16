@@ -76,7 +76,7 @@ class SyntaxAnalyzer:
 
             adv()
 
-            allowed_tail = set("_'@%:?*!#^&()-")
+            allowed_tail = set("_'@%?*!#^&()-")
             while i < n:
                 ch = peek()
                 if ch.isalnum() or ch == "_":
