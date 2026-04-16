@@ -133,6 +133,7 @@ class LexicalAnalyzer:
     def analyze(self, text: str) -> Tuple[List[Token], List[Dict]]:
         tokens: List[Token] = []
         errors: List[Dict] = []
+        reported_invalid_symbol = set()  # (line, symbol)
 
         i = 0
         n = len(text)
@@ -153,8 +154,9 @@ class LexicalAnalyzer:
                 i += 1
                 continue
 
-            # Разрешаем @ в идентификаторах
-            if c.isalpha() or c == '_' or c == '@' or (c == "'" and i+1 < n and text[i+1].isalpha()):
+            # Разрешаем @ только внутри идентификаторов (например, Strin@g),
+            # но не как первый символ.
+            if c.isalpha() or c == '_' or (c == "'" and i+1 < n and text[i+1].isalpha()):
                 j = i
                 if c == "'":
                     j += 1
@@ -171,6 +173,23 @@ class LexicalAnalyzer:
                 else:
                     ttype = "идентификатор"
                     code = 2
+
+                # '@' допустим только как одиночный символ внутри слова вида A@B.
+                if "@" in lexeme:
+                    at_ok = (
+                        lexeme.count("@") == 1
+                        and re.search(r"[A-Za-zА-Яа-я0-9]@[A-Za-zА-Яа-я0-9]", lexeme) is not None
+                    )
+                    if not at_ok:
+                        at_col = start_col + lexeme.index("@")
+                        if (start_line, "@") not in reported_invalid_symbol:
+                            errors.append({
+                                "line": start_line,
+                                "col": at_col,
+                                "message": "Недопустимый символ '@'",
+                                "fragment": "@"
+                            })
+                            reported_invalid_symbol.add((start_line, "@"))
 
                 tokens.append(Token(code, ttype, lexeme, start_line, start_col, start_col + (j - i) - 1))
                 consumed = j - i

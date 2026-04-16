@@ -79,7 +79,7 @@ class SyntaxAnalyzer:
             # но '#[' трактуем как начало атрибута и не включаем в идентификатор.
             if not (
                 first.isalpha()
-                or first in {"_", "@"}
+                or first in {"_"}
                 or (first == "'" and i + 1 < n and s[i + 1].isalpha())
             ):
                 return None
@@ -131,6 +131,11 @@ class SyntaxAnalyzer:
 
         # ТЕЛО СТРУКТУРЫ
         while i < n and peek() not in "};":
+            # Важно: без этого можно зациклиться на '\n' или пробелах
+            skip_ws()
+            if i >= n or peek() in "};":
+                break
+
             # Читаем имя поля
             field_name = read_identifier()
             
@@ -145,8 +150,11 @@ class SyntaxAnalyzer:
                     adv()
                     skip_ws()
                     continue
+                if peek().isspace():
+                    skip_ws()
+                    continue
                 # Пропускаем до запятой или }
-                while i < n and peek() not in ",};":
+                while i < n and peek() not in ",};\n":
                     adv()
                 if peek() == ",":
                     adv()
