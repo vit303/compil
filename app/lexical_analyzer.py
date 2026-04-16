@@ -86,7 +86,7 @@ class LexicalAnalyzer:
         )
 
     def _primitive_spelling_message(self, lexeme: str) -> Optional[str]:
-        # Убираем @ из проверки
+
         clean_lexeme = lexeme.replace('@', '')
         
         if clean_lexeme in self._primitive_lexemes:
@@ -117,7 +117,6 @@ class LexicalAnalyzer:
             if t.type_name != "идентификатор":
                 continue
 
-            # Оставляем только проверку типов
             msg = self._primitive_spelling_message(t.lexeme)
 
             if msg is None:
@@ -154,8 +153,6 @@ class LexicalAnalyzer:
                 i += 1
                 continue
 
-            # Разрешаем @ только внутри идентификаторов (например, Strin@g),
-            # но не как первый символ.
             if c.isalpha() or c == '_' or (c == "'" and i+1 < n and text[i+1].isalpha()):
                 j = i
                 if c == "'":
@@ -174,7 +171,6 @@ class LexicalAnalyzer:
                     ttype = "идентификатор"
                     code = 2
 
-                # '@' допустим только как одиночный символ внутри слова вида A@B.
                 if "@" in lexeme:
                     at_ok = (
                         lexeme.count("@") == 1
@@ -354,16 +350,12 @@ class LexicalAnalyzer:
             if found:
                 continue
 
-            # @ больше не считается недопустимым символом, но если встретился другой неизвестный символ.
-            # Для одной строки выводим только первую такую ошибку, остальные символы до конца строки
-            # пропускаем без дополнительных сообщений, чтобы не засорять таблицу.
             if (
                 errors
                 and errors[-1].get("line") == start_line
                 and str(errors[-1].get("message", "")).startswith("Недопустимый символ")
             ):
-                # Уже есть ошибка про недопустимый символ в этой строке — просто
-                # двигаемся до конца строки.
+
                 while i < n and c != "\n":
                     i += 1
                     col += 1
