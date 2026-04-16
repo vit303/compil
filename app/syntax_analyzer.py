@@ -135,8 +135,16 @@ class SyntaxAnalyzer:
             field_name = read_identifier()
             
             if field_name is None:
+                # Ничего похожего на имя поля — даём одному лексеру
+                # отработать недопустимые символы и просто двигаемся дальше.
+                # Но для `x : u64,:` всё же хотим отдельную ошибку на ':' после ','.
                 if peek() == "":
                     break
+                if peek() == ":":
+                    err("Лишний символ ':' (ожидалось имя поля)", ":")
+                    adv()
+                    skip_ws()
+                    continue
                 # Пропускаем до запятой или }
                 while i < n and peek() not in ",};":
                     adv()
@@ -181,9 +189,14 @@ class SyntaxAnalyzer:
                 return False
 
             type_line = line
-            type_col = col
-            
             type_start_col = col
+
+            # Recovery для случая `x :: u64`:
+            # если сразу после ':' видим второй ':', пропускаем его и пытаемся прочитать тип.
+            if peek() == ":":
+                err("Лишний символ ':' перед типом поля", ":")
+                adv()
+                skip_ws()
 
             type_name = read_identifier()
 
