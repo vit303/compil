@@ -573,17 +573,9 @@ class MainWindow(QMainWindow):
         tokens, lexical_errors = analyzer.analyze(text)
 
         parser = SyntaxAnalyzer()
-        syntax_errors = parser.analyze(text)
+        syntax_errors = parser.analyze(text, lexical_errors)
 
         self.output_tab.add_tokens(tokens)
-
-        for err in lexical_errors:
-            self.errors_tab.add_error(
-                err["line"],
-                err["col"],
-                err["message"],
-                fragment=err.get("fragment", "")
-            )
 
         for err in syntax_errors:
             self.errors_tab.add_error(
@@ -593,7 +585,7 @@ class MainWindow(QMainWindow):
                 fragment=err.fragment
             )
 
-        if not lexical_errors and not syntax_errors:
+        if not syntax_errors:
             self.statusBar().showMessage(self.tr("Синтаксических ошибок не обнаружено"), 5000)
         else:
             self.statusBar().showMessage(self.tr("Анализ завершён"), 5000)

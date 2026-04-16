@@ -19,6 +19,7 @@ class SyntaxAnalyzer:
         line = 1
         col = 1
         errors = []
+        lexical_error_entries = []
 
         def has_error_at(line_, col_, frag=None):
             for e in errors:
@@ -33,12 +34,14 @@ class SyntaxAnalyzer:
         # Получаем ошибки лексера, если они есть
         if lexical_errors:
             for err in lexical_errors:
-                errors.append(SyntaxErrorEntry(
+                entry = SyntaxErrorEntry(
                     err.get('line', 1),
                     err.get('col', 1),
                     err.get('fragment', ''),
                     err.get('message', '')
-                ))
+                )
+                errors.append(entry)
+                lexical_error_entries.append(entry)
 
         def peek():
             return s[i] if i < n else ""
@@ -68,11 +71,34 @@ class SyntaxAnalyzer:
         def read_identifier():
             nonlocal i
             start = i
-            if i >= n or not peek().isalpha():
+            if i >= n:
                 return None
+            first = peek()
+            # Поддерживаем набор символов, близкий к тому, что допускает лексер.
+            # Важно: '#' должен считаться частью идентификатора (например, Strin#g),
+            # но '#[' трактуем как начало атрибута и не включаем в идентификатор.
+            if not (
+                first.isalpha()
+                or first in {"_", "@"}
+                or (first == "'" and i + 1 < n and s[i + 1].isalpha())
+            ):
+                return None
+
             adv()
-            while i < n and (peek().isalnum() or peek() == "_"):
-                adv()
+
+            allowed_tail = set("_'@%:?*!#^&()-")
+            while i < n:
+                ch = peek()
+                if ch.isalnum() or ch == "_":
+                    adv()
+                    continue
+                if ch in allowed_tail:
+                    if ch == "#" and i + 1 < n and s[i + 1] == "[":
+                        break
+                    adv()
+                    continue
+                break
+
             return s[start:i]
 
         # НАЧАЛО АНАЛИЗА
@@ -124,6 +150,10 @@ class SyntaxAnalyzer:
             # :
             if peek() == ":":
                 adv()
+            else:
+                # ":" обязателен после имени поля: `x: i32`
+                if peek() != "" and peek() not in ",};":
+                    err("Ожидался символ ':'", ":")
 
             skip_ws()
 
@@ -136,7 +166,7 @@ class SyntaxAnalyzer:
             }
 
             def has_lex_error_for_fragment(line_, start_col_, end_col_, fragment):
-                for e in errors:
+                for e in lexical_error_entries:
                     if e.line != line_:
                         continue
                     
@@ -175,6 +205,15 @@ class SyntaxAnalyzer:
                 skip_ws()
             elif peek() == "}":
                 break
+            elif peek() != "":
+                # Между полями требуется запятая: `x: i32, y: i32`
+                next_ch = peek()
+                if (
+                    next_ch.isalpha()
+                    or next_ch in {"_", "@"}
+                    or (next_ch == "'" and i + 1 < n and s[i + 1].isalpha())
+                ):
+                    err("Ожидалась запятая ',' после типа поля", ",")
 
         # Пропускаем всё остальное до конца
         skip_ws()
