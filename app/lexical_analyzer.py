@@ -86,25 +86,28 @@ class LexicalAnalyzer:
         )
 
     def _primitive_spelling_message(self, lexeme: str) -> Optional[str]:
-        if lexeme in self._primitive_lexemes:
+        # Убираем @ из проверки
+        clean_lexeme = lexeme.replace('@', '')
+        
+        if clean_lexeme in self._primitive_lexemes:
             return None
-        if re.match(r"^[iu][0-9]+$", lexeme):
-            if not self._primitive_numeric_re.match(lexeme):
+        if re.match(r"^[iu][0-9]+$", clean_lexeme):
+            if not self._primitive_numeric_re.match(clean_lexeme):
                 return (
-                    f"Неверное написание целочисленного типа «{lexeme}». "
+                    f"Неверное написание целочисленного типа «{clean_lexeme}». "
                     f"Допустимы: i8, i16, i32, i64, i128, isize и аналогично u*."
                 )
             return None
-        if re.match(r"^f[0-9]+$", lexeme):
-            if lexeme not in ("f32", "f64"):
+        if re.match(r"^f[0-9]+$", clean_lexeme):
+            if clean_lexeme not in ("f32", "f64"):
                 return (
-                    f"Неверное написание типа с плавающей точкой «{lexeme}». "
+                    f"Неверное написание типа с плавающей точкой «{clean_lexeme}». "
                     f"Допустимы только f32 и f64."
                 )
             return None
-        if self._iu_letter_blob_re.match(lexeme) and lexeme not in ("isize", "usize"):
+        if self._iu_letter_blob_re.match(clean_lexeme) and clean_lexeme not in ("isize", "usize"):
             return (
-                f"Неизвестное написание встроенного типа «{lexeme}». "
+                f"Неизвестное написание встроенного типа «{clean_lexeme}». "
                 f"Проверьте написание (например, i32, u64, isize, usize)."
             )
         return None
@@ -113,11 +116,13 @@ class LexicalAnalyzer:
         for t in tokens:
             if t.type_name != "идентификатор":
                 continue
+
+            # Оставляем только проверку типов
             msg = self._primitive_spelling_message(t.lexeme)
-            if msg is None:
-                msg = self._keyword_typo_message(t.lexeme)
+
             if msg is None:
                 continue
+
             errors.append({
                 "line": t.line,
                 "col": t.start_col,
@@ -148,11 +153,12 @@ class LexicalAnalyzer:
                 i += 1
                 continue
 
-            if c.isalpha() or c == '_' or (c == "'" and i+1 < n and text[i+1].isalpha()):
+            # Разрешаем @ в идентификаторах
+            if c.isalpha() or c == '_' or c == '@' or (c == "'" and i+1 < n and text[i+1].isalpha()):
                 j = i
                 if c == "'":
                     j += 1
-                while j < n and (text[j].isalnum() or text[j] in "_'"):
+                while j < n and (text[j].isalnum() or text[j] in "_'@%:?*!№#^&()-"):
                     j += 1
                 lexeme = text[i:j]
 
@@ -329,6 +335,7 @@ class LexicalAnalyzer:
             if found:
                 continue
 
+            # @ больше не считается недопустимым символом, но если встретился другой неизвестный символ
             errors.append({
                 "line": start_line,
                 "col": start_col,
