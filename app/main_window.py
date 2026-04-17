@@ -7,27 +7,30 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QMessageBox,
     QToolBar,
-    QSplitter, 
+    QSplitter,
     QLabel,
-    QTableWidgetItem
+    QTableWidgetItem,
+    QApplication,
 )
 
 from PyQt6.QtGui import (
     QAction,
     QIcon,
     QKeySequence,
-    QTextCursor
+    QTextCursor,
 )
+
+from PyQt6.QtCore import Qt
 
 from .lexical_analyzer import LexicalAnalyzer
 from .syntax_analyzer import SyntaxAnalyzer
-
-from PyQt6.QtCore import Qt
 
 from .editor_tab import EditorTab
 from .output_tab import OutputTab
 from .dialogs import AboutDialog, confirm_exit
 from .i18n import Translator
+
+import webbrowser
 
 
 class MainWindow(QMainWindow):
@@ -45,17 +48,6 @@ class MainWindow(QMainWindow):
         self.m_lang = None
 
         self.text_actions = []
-        self.text_menu_items = [
-            "Постановка задачи",
-            "Грамматика",
-            "Классификация грамматики",
-            "Методология анализа",
-            "Тестовый пример",
-            "Список литературы",
-            "Исходный код программы",
-        ]
-
-        self.current_encoding = "UTF-8"
 
         self.setWindowTitle(self.tr("Текстовый редактор"))
         self.resize(1100, 750)
@@ -71,10 +63,8 @@ class MainWindow(QMainWindow):
         self.tabs_editor.currentChanged.connect(self.on_tab_changed)
         self.add_new_tab()
 
-
     def on_tab_changed(self, index):
         self.update_cursor_position()
-
 
     def _init_ui(self):
         central = QWidget()
@@ -92,10 +82,10 @@ class MainWindow(QMainWindow):
         self.tabs_output = QTabWidget()
 
         self.output_tab = OutputTab("Результаты", table=True, is_results_table=True, tr=self.tr)
-        self.errors_tab  = OutputTab("Ошибки",   table=True, tr=self.tr)
+        self.errors_tab = OutputTab("Ошибки", table=True, tr=self.tr)
 
-        self.tabs_output.addTab(self.output_tab,  self.tr("Результаты"))
-        self.tabs_output.addTab(self.errors_tab,  self.tr("Ошибки"))
+        self.tabs_output.addTab(self.output_tab, self.tr("Результаты"))
+        self.tabs_output.addTab(self.errors_tab, self.tr("Ошибки"))
 
         self.errors_tab.table.itemClicked.connect(self.goto_error)
 
@@ -123,7 +113,6 @@ class MainWindow(QMainWindow):
         cursor.movePosition(QTextCursor.MoveOperation.Right, QTextCursor.MoveMode.MoveAnchor, col - 1)
         editor.setTextCursor(cursor)
         editor.setFocus()
-
 
     def _create_actions(self):
         self.act_new = QAction(self)
@@ -181,7 +170,6 @@ class MainWindow(QMainWindow):
         self.act_lang_en = QAction(self)
         self.act_lang_en.triggered.connect(lambda: self.set_language("en"))
 
-
     def _create_menus(self):
         mb = self.menuBar()
 
@@ -209,11 +197,27 @@ class MainWindow(QMainWindow):
         self.m_view.addAction(self.act_font_inc)
         self.m_view.addAction(self.act_font_dec)
 
+        # ==================== МЕНЮ "ТЕКСТ" ====================
         self.m_text = mb.addMenu(self.tr("Текст"))
+
+        self.text_menu_items = [
+            "Постановка задачи",
+            "Грамматика",
+            "Классификация грамматики",
+            "Методология анализа",
+            "Тестовый пример",
+            "Список литературы",
+            "Исходный код программы",
+            "Курсовая работа",
+        ]
+
+        self.text_actions = []
         for item_text in self.text_menu_items:
             act = QAction(self.tr(item_text), self)
+            act.triggered.connect(lambda checked=False, title=item_text: self.show_text_info(title))
             self.text_actions.append(act)
             self.m_text.addAction(act)
+        # =====================================================
 
         self.m_pusk = mb.addMenu(self.tr("Пуск"))
         self.m_pusk.addAction(self.act_run)
@@ -226,7 +230,6 @@ class MainWindow(QMainWindow):
         self.m_lang.addAction(self.act_lang_ru)
         self.m_lang.addAction(self.act_lang_en)
 
-
     def _create_toolbar(self):
         toolbar = QToolBar("Основные действия")
         toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
@@ -238,15 +241,15 @@ class MainWindow(QMainWindow):
             QIcon.fromTheme("document-new", style.standardIcon(style.StandardPixmap.SP_FileIcon)),
             "", self
         )
-        act_new.setToolTip(self.tr("Создать новый документ"))
-        act_new.triggered.connect(lambda: self.add_new_tab())
+        act_new.setToolTip(self.tr("Создать"))
+        act_new.triggered.connect(self.add_new_tab)
         toolbar.addAction(act_new)
 
         act_open = QAction(
             QIcon.fromTheme("document-open", style.standardIcon(style.StandardPixmap.SP_DirOpenIcon)),
             "", self
         )
-        act_open.setToolTip(self.tr("Открыть файл"))
+        act_open.setToolTip(self.tr("Открыть"))
         act_open.triggered.connect(self.open_file)
         toolbar.addAction(act_open)
 
@@ -270,13 +273,11 @@ class MainWindow(QMainWindow):
 
         act_undo = QAction(QIcon.fromTheme("edit-undo"), "", self)
         act_undo.setToolTip(self.tr("Отменить"))
-        act_undo.setShortcut(QKeySequence.StandardKey.Undo)
         act_undo.triggered.connect(lambda: self.current_editor_tab().editor.undo() if self.current_editor_tab() else None)
         toolbar.addAction(act_undo)
 
         act_redo = QAction(QIcon.fromTheme("edit-redo"), "", self)
         act_redo.setToolTip(self.tr("Повторить"))
-        act_redo.setShortcut(QKeySequence.StandardKey.Redo)
         act_redo.triggered.connect(lambda: self.current_editor_tab().editor.redo() if self.current_editor_tab() else None)
         toolbar.addAction(act_redo)
 
@@ -284,19 +285,16 @@ class MainWindow(QMainWindow):
 
         act_cut = QAction(QIcon.fromTheme("edit-cut"), "", self)
         act_cut.setToolTip(self.tr("Вырезать"))
-        act_cut.setShortcut(QKeySequence.StandardKey.Cut)
         act_cut.triggered.connect(lambda: self.current_editor_tab().editor.cut() if self.current_editor_tab() else None)
         toolbar.addAction(act_cut)
 
         act_copy = QAction(QIcon.fromTheme("edit-copy"), "", self)
         act_copy.setToolTip(self.tr("Копировать"))
-        act_copy.setShortcut(QKeySequence.StandardKey.Copy)
         act_copy.triggered.connect(lambda: self.current_editor_tab().editor.copy() if self.current_editor_tab() else None)
         toolbar.addAction(act_copy)
 
         act_paste = QAction(QIcon.fromTheme("edit-paste"), "", self)
         act_paste.setToolTip(self.tr("Вставить"))
-        act_paste.setShortcut(QKeySequence.StandardKey.Paste)
         act_paste.triggered.connect(lambda: self.current_editor_tab().editor.paste() if self.current_editor_tab() else None)
         toolbar.addAction(act_paste)
 
@@ -306,7 +304,7 @@ class MainWindow(QMainWindow):
             QIcon.fromTheme("media-playback-start", style.standardIcon(style.StandardPixmap.SP_MediaPlay)),
             "", self
         )
-        act_run.setToolTip(self.tr("Запустить синтаксический анализатор"))
+        act_run.setToolTip(self.tr("Запустить анализ"))
         act_run.setShortcut("F5")
         act_run.triggered.connect(self.run_analysis)
         toolbar.addAction(act_run)
@@ -317,7 +315,7 @@ class MainWindow(QMainWindow):
             QIcon.fromTheme("help-contents", style.standardIcon(style.StandardPixmap.SP_DialogHelpButton)),
             "", self
         )
-        act_help.setToolTip(self.tr("Справка / руководство пользователя"))
+        act_help.setToolTip(self.tr("Справка"))
         act_help.triggered.connect(self.show_help)
         toolbar.addAction(act_help)
 
@@ -329,20 +327,77 @@ class MainWindow(QMainWindow):
         act_about.triggered.connect(self.show_about)
         toolbar.addAction(act_about)
 
-
     def _create_statusbar(self):
         self.statusBar().showMessage(self.tr("Готов"))
 
         self.cursor_pos_label = QLabel(self.tr("Строка 1 : 1"))
-        self.encoding_label   = QLabel(self.current_encoding)
-        self.mode_label       = QLabel(self.tr("Вставка"))
-        self.stats_label      = QLabel(self.tr("0 симв. | 0 слов"))
+        self.encoding_label = QLabel("UTF-8")
+        self.mode_label = QLabel(self.tr("Вставка"))
+        self.stats_label = QLabel(self.tr("0 симв. | 0 слов"))
 
         self.statusBar().addPermanentWidget(self.cursor_pos_label)
         self.statusBar().addPermanentWidget(self.encoding_label)
         self.statusBar().addPermanentWidget(self.mode_label)
         self.statusBar().addPermanentWidget(self.stats_label)
 
+    def show_text_info(self, title: str):
+        if title == "Курсовая работа":
+            link = "https://docs.google.com/document/d/1Md38RCMQFKcy0bz1F-xeyEVWTMKQe_tp/edit?usp=sharing"
+            QApplication.clipboard().setText(link)
+            
+            QMessageBox.information(
+                self,
+                "Курсовая работа",
+                f"✅ Ссылка на курсовую скопирована в буфер обмена!\n\n"
+                f"{link}\n\nДокумент открывается в браузере..."
+            )
+            webbrowser.open(link)
+            return
+
+        content = {
+            "Постановка задачи": 
+                "Разработать пользовательский интерфейс (GUI) для языкового процессора.\n\n"
+                "Требуется реализовать:\n"
+                "• Многооконный текстовый редактор с нумерацией строк\n"
+                "• Лексический анализатор\n"
+                "• Синтаксический анализатор\n"
+                "• Подсветку синтаксиса\n"
+                "• Вывод токенов и ошибок\n"
+                "• Поддержку русского и английского языка",
+
+            "Грамматика": 
+                "<START> ::= struct <IDENTIFIER> { <FIELD_LIST> } ;\n"
+                "<FIELD_LIST> ::= <FIELD> | <FIELD> , <FIELD_LIST>\n"
+                "<FIELD> ::= <IDENTIFIER> : <TYPE>",
+
+            "Классификация грамматики": 
+                "Грамматика относится к классу LL(1) контекстно-свободных грамматик.",
+
+            "Методология анализа": 
+                "• Лексический анализ — на основе регулярных выражений и ручного разбора\n"
+                "• Синтаксический анализ — метод рекурсивного спуска (Recursive Descent)",
+
+            "Тестовый пример": 
+                "struct Point {\n"
+                "    x: i32,\n"
+                "    y: i32\n"
+                "};",
+
+            "Список литературы": 
+                "1. Ахо А.В., Ульман Дж.Д. Теория синтаксического анализа, трансляции и компиляции\n"
+                "2. Compilers: Principles, Techniques, and Tools (Dragon Book)",
+
+            "Исходный код программы": 
+                "https://github.com/vit303/compil"
+        }
+
+        text = content.get(title, "Информация по данному разделу отсутствует.")
+
+        QMessageBox.information(
+            self,
+            self.tr(title),
+            text
+        )
 
     def update_cursor_position(self):
         if not self.current_editor_tab():
@@ -353,42 +408,28 @@ class MainWindow(QMainWindow):
         editor = self.current_editor_tab().editor
         cursor = editor.textCursor()
         line = cursor.blockNumber() + 1
-        col  = cursor.columnNumber() + 1
+        col = cursor.columnNumber() + 1
 
         mode_ru = self.tr("Замена") if editor.overwriteMode() else self.tr("Вставка")
 
-        self.cursor_pos_label.setText(
-            f"{self.tr('Строка')} {line} : {col}"
-        )
+        self.cursor_pos_label.setText(f"{self.tr('Строка')} {line} : {col}")
         self.mode_label.setText(mode_ru)
 
         text = editor.toPlainText()
         chars = len(text)
         words = len(text.split())
-        self.stats_label.setText(
-            f"{chars} {self.tr('симв.')} | {words} {self.tr('слов')}"
-        )
-
+        self.stats_label.setText(f"{chars} {self.tr('симв.')} | {words} {self.tr('слов')}")
 
     def retranslate(self):
         self.setWindowTitle(self.tr("Текстовый редактор"))
 
-        if self.m_file:
-            self.m_file.setTitle(self.tr("Файл"))
-        if self.m_edit:
-            self.m_edit.setTitle(self.tr("Правка"))
-        if self.m_view:
-            self.m_view.setTitle(self.tr("Вид"))
-        if self.m_text:
-            self.m_text.setTitle(self.tr("Текст"))
-            for i, act in enumerate(self.text_actions):
-                act.setText(self.tr(self.text_menu_items[i]))
-        if self.m_pusk:
-            self.m_pusk.setTitle(self.tr("Пуск"))
-        if self.m_help:
-            self.m_help.setTitle(self.tr("Справка"))
-        if self.m_lang:
-            self.m_lang.setTitle(self.tr("Язык"))
+        if self.m_file: self.m_file.setTitle(self.tr("Файл"))
+        if self.m_edit: self.m_edit.setTitle(self.tr("Правка"))
+        if self.m_view: self.m_view.setTitle(self.tr("Вид"))
+        if self.m_text: self.m_text.setTitle(self.tr("Текст"))
+        if self.m_pusk: self.m_pusk.setTitle(self.tr("Пуск"))
+        if self.m_help: self.m_help.setTitle(self.tr("Справка"))
+        if self.m_lang: self.m_lang.setTitle(self.tr("Язык"))
 
         self.act_new.setText(self.tr("Создать"))
         self.act_open.setText(self.tr("Открыть"))
@@ -414,14 +455,6 @@ class MainWindow(QMainWindow):
         self.tabs_output.setTabText(0, self.tr("Результаты"))
         self.tabs_output.setTabText(1, self.tr("Ошибки"))
 
-        if hasattr(self, 'errors_tab') and self.errors_tab.is_table:
-            headers = [
-                self.tr("Неверный фрагмент"),
-                self.tr("Местоположение"),
-                self.tr("Описание ошибки")
-            ]
-            self.errors_tab.table.setHorizontalHeaderLabels(headers)
-
         for i in range(self.tabs_editor.count()):
             tab = self.tabs_editor.widget(i)
             title = getattr(tab, 'filename', None) or self.tr("Новый файл")
@@ -429,30 +462,12 @@ class MainWindow(QMainWindow):
                 title += " *"
             self.tabs_editor.setTabText(i, title)
 
-        if hasattr(self, 'output_tab') and self.output_tab.is_results_table:
-            headers = [
-                self.tr("Условный код"),
-                self.tr("Тип лексемы"),
-                self.tr("Лексема"),
-                self.tr("Местоположение")
-            ]
-            self.output_tab.table.setHorizontalHeaderLabels(headers)
-
-        if hasattr(self, 'errors_tab') and self.errors_tab.is_table:
-            headers = [
-                self.tr("Неверный фрагмент"),
-                self.tr("Местоположение"),
-                self.tr("Описание ошибки")
-            ]
-            self.errors_tab.table.setHorizontalHeaderLabels(headers)
-
         self.statusBar().showMessage(self.tr("Готов"))
         self.update_cursor_position()
 
     def set_language(self, lang):
         self.translator.set_language(lang)
         self.retranslate()
-
 
     def add_new_tab(self, filename=None, content=""):
         tab = EditorTab(filename, content)
@@ -462,13 +477,10 @@ class MainWindow(QMainWindow):
 
         tab.editor.cursorPositionChanged.connect(self.update_cursor_position)
         tab.editor.textChanged.connect(self.update_cursor_position)
-
         self.update_cursor_position()
-
 
     def current_editor_tab(self):
         return self.tabs_editor.currentWidget()
-
 
     def close_tab(self, index):
         tab = self.tabs_editor.widget(index)
@@ -488,7 +500,6 @@ class MainWindow(QMainWindow):
 
         self.tabs_editor.removeTab(index)
 
-
     def open_file(self):
         path, _ = QFileDialog.getOpenFileName(
             self, self.tr("Открыть файл"), "", "Все файлы (*);;Текстовые файлы (*.txt *.lang)"
@@ -500,7 +511,6 @@ class MainWindow(QMainWindow):
                 self.add_new_tab(path, content)
             except Exception as e:
                 QMessageBox.warning(self, self.tr("Ошибка"), f"{self.tr('Не удалось открыть файл')}:\n{e}")
-
 
     def save_file(self):
         tab = self.current_editor_tab()
@@ -523,7 +533,6 @@ class MainWindow(QMainWindow):
             self.retranslate()
         except Exception as e:
             QMessageBox.warning(self, self.tr("Ошибка"), f"{self.tr('Не удалось сохранить')}:\n{e}")
-
 
     def save_file_as(self):
         tab = self.current_editor_tab()
@@ -548,7 +557,6 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.warning(self, self.tr("Ошибка"), f"{self.tr('Не удалось сохранить')}:\n{e}")
 
-
     def change_font_size(self, delta):
         tab = self.current_editor_tab()
         if tab and hasattr(tab, 'scale_font'):
@@ -557,7 +565,6 @@ class MainWindow(QMainWindow):
         current_output = self.tabs_output.currentWidget()
         if current_output and hasattr(current_output, 'scale_font'):
             current_output.scale_font(delta)
-
 
     def run_analysis(self):
         tab = self.current_editor_tab()
@@ -590,10 +597,8 @@ class MainWindow(QMainWindow):
         else:
             self.statusBar().showMessage(self.tr("Анализ завершён"), 5000)
 
-
     def show_about(self):
         AboutDialog(self).exec()
-
 
     def show_help(self):
         QMessageBox.information(
@@ -601,10 +606,9 @@ class MainWindow(QMainWindow):
             self.tr("Справка"),
             self.tr(
                 "Учебный редактор для языкового процессора.\n"
-                "Синтаксический анализ: посимвольная грамматика struct (см. правила <START>…<END_BODY>)."
+                "Синтаксический анализ: посимвольная грамматика struct."
             )
         )
-
 
     def closeEvent(self, event):
         has_modified = any(
@@ -617,11 +621,9 @@ class MainWindow(QMainWindow):
                 return
         event.accept()
 
-
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
             event.acceptProposedAction()
-
 
     def dropEvent(self, event):
         for url in event.mimeData().urls():
