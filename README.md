@@ -204,8 +204,46 @@ pip install PyQt6
 - Интеграция: кнопка «Пуск» (или отдельная кнопка) запускает синтаксический анализ.
 - Навигация: клик по строке таблицы ошибок → курсор в редакторе устанавливается на позицию ошибки.
 
-###Разработанная грамматика
+## Вариант задания 11
+Объявление и определение структуры на языке Rust
 
+Корректные примеры строк:
+
+```
+struct Student {
+    name: String,
+    roll: u64,
+    dept: String
+};
+
+```
+
+```
+struct Point {
+    x : f64,
+    y : f64
+};
+
+```
+```
+struct Product {
+    name: String,
+    id: u64,
+    price: f64,
+    category: String,
+    in_stock: bool
+};
+```
+### Перечень допустимых лексем
+```
+struct, bool, char, str, String,
+i8, i16, i32, i64, i128, isize,
+u8, u16, u32, u64, u128, usize,
+f32, f64
+```
+
+### Разработанная грамматика
+```
 1) <START> -> 'struct' <SPACE>
 2) <SPACE> -> ' ' <NAME_STRUCT>
 3) <NAME_STRUCT> -> letter <NAME_STRUCT_REM>
@@ -215,14 +253,32 @@ pip install PyQt6
 7) <TYPE> -> 'String' <END_FIELD> | 'u64' <END_FIELD> | 'char' <END_FIELD> | 'f64' <END_FIELD> | 'bool' <END_FIELD>
 8) <END_FIELD> -> ',' <BODY> | '}' <END_BODY>
 9) <END_BODY> -> ';'
+```
+
+Следуя введенному формальному определению грамматики, представим G[‹START›] ее составляющими:
+•	Z = ‹START ›;
+•	VT = { a, b, c, ..., z, A, B, C, ..., Z, 0, 1, 2, ..., 9, _, {, }, :, ,, ;, _};
+•	VN = {<START>, <SPACE>, <NAME_STRUCT>, <NAME_STRUCT_REM>, <BODY>, <ID>, <TYPE>, <END_FIELD>, <END_BODY>}.
+Согласно классификации Хомского, грамматика G[‹START›] является автоматной.
+Правила (1)-(9) относятся к классу праворекурсивных продукций (A → aB | a | ε)
 
 ![граф автоматной грамматики](screenshots/lr3.png)
 
-### Вариант задания (синтаксис)
+## Вариант задания (синтаксис)
 
 **Конструкция:** объявление структуры в стиле Rust.
 
-### Тесты
+## Тесты
 ![ТЕСТ 1](screenshots/test1.png)
 ![ТЕСТ 2](screenshots/test2.png)
 ![ТЕСТ 3](screenshots/test3.png)
+
+## Тест со множеством ошибок
+
+### Правильный вариант
+
+![ТЕСТ 1](screenshots/correct_defolt.png)
+
+### Вариант с 10 ошибками
+
+![ТЕСТ 2](screenshots/10mist.png)
