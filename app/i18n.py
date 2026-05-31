@@ -78,6 +78,41 @@ class Translator:
                 "LLVM: анализ завершён": "LLVM: анализ завершён",
                 "LLVM: анализ с предупреждениями": "LLVM: анализ с предупреждениями",
                 "LLVM: инструменты не найдены": "LLVM: инструменты не найдены",
+                "КР: AST / TAC": "КР: AST / TAC",
+                "Доп. задание: AST и TAC": "Доп. задание: AST и TAC",
+                "Открыть пример struct (КР)": "Открыть пример struct (КР)",
+                "Доп. задание": "Доп. задание",
+                "Дополнительное задание выполняется для конструкции struct из КР (Rust).\n"
+                "Откройте пример: Пуск → Открыть пример struct (КР).": (
+                    "Дополнительное задание выполняется для конструкции struct из КР (Rust).\n"
+                    "Откройте пример: Пуск → Открыть пример struct (КР)."
+                ),
+                "AST не построено: исправьте синтаксические ошибки.": (
+                    "AST не построено: исправьте синтаксические ошибки."
+                ),
+                "КР: ошибки разбора": "КР: ошибки разбора",
+                "КР: AST и оптимизации готовы": "КР: AST и оптимизации готовы",
+                "Синтаксических ошибок не обнаружено; доп. задание выполнено": (
+                    "Синтаксических ошибок не обнаружено; доп. задание выполнено"
+                ),
+                "КР: свои оптимизации (без Clang)": "КР: свои оптимизации (без Clang)",
+                "C: доп. задание (свои оптимизации, без Clang)": (
+                    "C: доп. задание (свои оптимизации, без Clang)"
+                ),
+                "Режим C (struct_pass): лексер Rust не применяется.\n": (
+                    "Режим C (struct_pass): лексер Rust не применяется.\n"
+                ),
+                "Оптимизации — собственные, без Clang.\n\n": (
+                    "Оптимизации — собственные, без Clang.\n\n"
+                ),
+                "Для C используйте пример struct_pass.c (Point/sum/main)\n"
+                "или Rust-объявление struct из КР.": (
+                    "Для C используйте пример struct_pass.c (Point/sum/main)\n"
+                    "или Rust-объявление struct из КР."
+                ),
+                "Для C откройте пример struct_pass.c (Point, sum, main).": (
+                    "Для C откройте пример struct_pass.c (Point, sum, main)."
+                ),
             },
             "en": {
                 "Текстовый редактор": "Text Editor",
@@ -155,6 +190,40 @@ class Translator:
                 "LLVM: анализ завершён": "LLVM: analysis completed",
                 "LLVM: анализ с предупреждениями": "LLVM: analysis completed with warnings",
                 "LLVM: инструменты не найдены": "LLVM: tools not found",
+                "КР: AST / TAC": "KR: AST / TAC",
+                "Доп. задание: AST и TAC": "Bonus: AST and TAC",
+                "Открыть пример struct (КР)": "Open struct example (KR)",
+                "Доп. задание": "Bonus assignment",
+                "Дополнительное задание выполняется для конструкции struct из КР (Rust).\n"
+                "Откройте пример: Пуск → Открыть пример struct (КР).": (
+                    "Bonus assignment is for the KR struct declaration (Rust syntax).\n"
+                    "Use Run → Open struct example (KR)."
+                ),
+                "AST не построено: исправьте синтаксические ошибки.": (
+                    "AST not built: fix syntax errors first."
+                ),
+                "КР: ошибки разбора": "KR: parse errors",
+                "КР: AST и оптимизации готовы": "KR: AST and optimizations ready",
+                "Синтаксических ошибок не обнаружено; доп. задание выполнено": (
+                    "No syntax errors; bonus assignment completed"
+                ),
+                "КР: свои оптимизации (без Clang)": "KR: custom optimizations (no Clang)",
+                "C: доп. задание (свои оптимизации, без Clang)": (
+                    "C: bonus (custom optimizations, no Clang)"
+                ),
+                "Режим C (struct_pass): лексер Rust не применяется.\n": (
+                    "C mode (struct_pass): Rust lexer skipped.\n"
+                ),
+                "Оптимизации — собственные, без Clang.\n\n": (
+                    "Optimizations are custom Python passes (no Clang).\n\n"
+                ),
+                "Для C используйте пример struct_pass.c (Point/sum/main)\n"
+                "или Rust-объявление struct из КР.": (
+                    "For C use struct_pass.c (Point/sum/main) or Rust struct from KR."
+                ),
+                "Для C откройте пример struct_pass.c (Point, sum, main).": (
+                    "For C open struct_pass.c example (Point, sum, main)."
+                ),
             }
         }
 

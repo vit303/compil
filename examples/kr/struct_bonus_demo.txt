@@ -1,0 +1,5 @@
+struct Product {
+    price: f64,
+    id: u64,
+    name: String
+};

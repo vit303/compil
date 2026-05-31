@@ -26,7 +26,15 @@ from PyQt6.QtCore import Qt
 
 from .lexical_analyzer import LexicalAnalyzer
 from .syntax_analyzer import SyntaxAnalyzer
-from .clang_llvm import ClangLLVMAnalyzer, format_report, is_c_source, discover_tools
+from .clang_llvm import is_c_source
+from .struct_ast import StructASTParser, format_ast
+from .struct_ir import ast_to_tac, run_optimizations, format_full_bonus_report
+from .c_struct_ir import (
+    is_c_struct_pass_program,
+    build_struct_pass_tac,
+    run_c_struct_optimizations,
+    format_c_bonus_report,
+)
 
 from .editor_tab import EditorTab
 from .output_tab import OutputTab
@@ -85,11 +93,11 @@ class MainWindow(QMainWindow):
         self.tabs_output = QTabWidget()
 
         self.output_tab = OutputTab("Результаты", table=True, is_results_table=True, tr=self.tr)
-        self.llvm_tab = OutputTab("LLVM", table=False, tr=self.tr)
+        self.bonus_tab = OutputTab("TAC", table=False, tr=self.tr)
         self.errors_tab = OutputTab("Ошибки", table=True, tr=self.tr)
 
         self.tabs_output.addTab(self.output_tab, self.tr("Результаты"))
-        self.tabs_output.addTab(self.llvm_tab, self.tr("LLVM / IR"))
+        self.tabs_output.addTab(self.bonus_tab, self.tr("КР: AST / TAC"))
         self.tabs_output.addTab(self.errors_tab, self.tr("Ошибки"))
 
         self.errors_tab.table.itemClicked.connect(self.goto_error)
@@ -155,11 +163,15 @@ class MainWindow(QMainWindow):
         self.act_run.setShortcut("F5")
         self.act_run.triggered.connect(self.run_analysis)
 
-        self.act_run_llvm = QAction(self)
-        self.act_run_llvm.triggered.connect(self.run_llvm_analysis)
-
         self.act_open_struct_example = QAction(self)
         self.act_open_struct_example.triggered.connect(self.open_struct_example)
+
+        self.act_open_bonus_example = QAction(self)
+        self.act_open_bonus_example.triggered.connect(self.open_bonus_example)
+
+        self.act_run_bonus = QAction(self)
+        self.act_run_bonus.setShortcut("F6")
+        self.act_run_bonus.triggered.connect(self.run_bonus_analysis)
 
         self.act_about = QAction(self)
         self.act_about.triggered.connect(self.show_about)
@@ -232,9 +244,10 @@ class MainWindow(QMainWindow):
 
         self.m_pusk = mb.addMenu(self.tr("Пуск"))
         self.m_pusk.addAction(self.act_run)
-        self.m_pusk.addAction(self.act_run_llvm)
+        self.m_pusk.addAction(self.act_run_bonus)
         self.m_pusk.addSeparator()
         self.m_pusk.addAction(self.act_open_struct_example)
+        self.m_pusk.addAction(self.act_open_bonus_example)
 
         self.m_help = mb.addMenu(self.tr("Справка"))
         self.m_help.addAction(self.act_help)
@@ -370,18 +383,12 @@ class MainWindow(QMainWindow):
 
         content = {
             "Постановка задачи":
-                "Лабораторная работа 7. Clang и LLVM.\n\n"
-                "Общее задание:\n"
-                "• AST (clang -ast-dump)\n"
-                "• LLVM IR при -O0 и -O2\n"
-                "• Оптимизация IR (opt)\n"
-                "• CFG (opt -passes=dot-cfg, Graphviz)\n\n"
-                "Индивидуальный вариант (структуры):\n"
-                "• Передача struct Point в функцию sum\n"
-                "• Сравнение IR до/после -O2\n"
-                "• CFG для sum и main\n"
-                "• Версия с __attribute__((always_inline))\n\n"
-                "Запуск: F5 для C-файла или меню Пуск → Анализ LLVM.",
+                "Лабораторная работа 7. Анализ и оптимизация IR.\n\n"
+                "• Собственный AST и TAC (Python)\n"
+                "• Две локальные оптимизации\n"
+                "• Вариант C: struct_pass.c (передача struct)\n"
+                "• Вариант Rust: объявление struct из КР\n\n"
+                "Запуск: F5 или F6, вкладка «КР: AST / TAC».",
 
             "Грамматика": 
                 "<START> ::= struct <IDENTIFIER> { <FIELD_LIST> } ;\n"
@@ -461,8 +468,9 @@ class MainWindow(QMainWindow):
         self.act_paste.setText(self.tr("Вставить"))
 
         self.act_run.setText(self.tr("Запустить анализ (Rust)"))
-        self.act_run_llvm.setText(self.tr("Анализ LLVM (Clang)"))
+        self.act_run_bonus.setText(self.tr("Доп. задание: AST и TAC"))
         self.act_open_struct_example.setText(self.tr("Открыть пример struct_pass.c"))
+        self.act_open_bonus_example.setText(self.tr("Открыть пример struct (КР)"))
 
         self.act_font_inc.setText(self.tr("Увеличить шрифт"))
         self.act_font_dec.setText(self.tr("Уменьшить шрифт"))
@@ -474,7 +482,7 @@ class MainWindow(QMainWindow):
         self.act_about.setText(self.tr("О программе"))
 
         self.tabs_output.setTabText(0, self.tr("Результаты"))
-        self.tabs_output.setTabText(1, self.tr("LLVM / IR"))
+        self.tabs_output.setTabText(1, self.tr("КР: AST / TAC"))
         self.tabs_output.setTabText(2, self.tr("Ошибки"))
 
         for i in range(self.tabs_editor.count()):
@@ -603,6 +611,68 @@ class MainWindow(QMainWindow):
         content = path.read_text(encoding="utf-8")
         self.add_new_tab(str(path), content)
 
+    def open_bonus_example(self):
+        path = self._project_root() / "examples" / "kr" / "struct_bonus_demo.txt"
+        if not path.is_file():
+            QMessageBox.warning(self, self.tr("Ошибка"), f"Не найден файл:\n{path}")
+            return
+        self.add_new_tab(str(path), path.read_text(encoding="utf-8"))
+
+    def run_bonus_analysis(self):
+        tab = self.current_editor_tab()
+        if not tab:
+            return
+
+        text = tab.get_text()
+        filename = getattr(tab, "filename", None)
+
+        self.bonus_tab.clear()
+        self.errors_tab.clear()
+
+        # C: struct Point + sum + main — свой IR и оптимизации (без Clang)
+        if is_c_source(text, filename) and is_c_struct_pass_program(text):
+            instrs, ast_text = build_struct_pass_tac(text)
+            opts = run_c_struct_optimizations(instrs)
+            report = format_c_bonus_report(ast_text, instrs, opts)
+            cur = self.bonus_tab.text_edit.toPlainText() if hasattr(self.bonus_tab, "text_edit") else ""
+            self.bonus_tab.clear()
+            if cur.strip():
+                self.bonus_tab.append_text(cur + "\n")
+            self.bonus_tab.append_text(report)
+            self.tabs_output.setCurrentWidget(self.bonus_tab)
+            self.statusBar().showMessage(self.tr("КР: свои оптимизации (без Clang)"), 5000)
+            return
+
+        if is_c_source(text, filename):
+            QMessageBox.information(
+                self,
+                self.tr("Доп. задание"),
+                self.tr(
+                    "Для C используйте пример struct_pass.c (Point/sum/main)\n"
+                    "или Rust-объявление struct из КР."
+                ),
+            )
+            return
+
+        ast_parser = StructASTParser()
+        node, parse_errors = ast_parser.parse(text)
+
+        for e in parse_errors:
+            self.errors_tab.add_error(e.line, e.col, e.message, fragment=e.fragment)
+
+        if not node or parse_errors:
+            self.bonus_tab.append_text(self.tr("AST не построено: исправьте синтаксические ошибки."))
+            self.tabs_output.setCurrentWidget(self.bonus_tab)
+            self.statusBar().showMessage(self.tr("КР: ошибки разбора"), 5000)
+            return
+
+        instrs = ast_to_tac(node)
+        opts = run_optimizations(instrs)
+        report = format_full_bonus_report(format_ast(node), instrs, opts)
+        self.bonus_tab.append_text(report)
+        self.tabs_output.setCurrentWidget(self.bonus_tab)
+        self.statusBar().showMessage(self.tr("КР: AST и оптимизации готовы"), 5000)
+
     def run_analysis(self):
         tab = self.current_editor_tab()
         if not tab:
@@ -611,13 +681,25 @@ class MainWindow(QMainWindow):
         text = tab.get_text()
         filename = getattr(tab, "filename", None)
 
-        if is_c_source(text, filename):
-            self.run_llvm_analysis()
-            return
-
         self.output_tab.clear()
         self.errors_tab.clear()
-        self.llvm_tab.clear()
+        self.bonus_tab.clear()
+
+        if is_c_source(text, filename) and is_c_struct_pass_program(text):
+            self.bonus_tab.append_text(
+                self.tr("Режим C (struct_pass): лексер Rust не применяется.\n")
+                + self.tr("Оптимизации — собственные, без Clang.\n\n")
+            )
+            self.run_bonus_analysis()
+            return
+
+        if is_c_source(text, filename):
+            self.bonus_tab.append_text(
+                self.tr("Для C откройте пример struct_pass.c (Point, sum, main).")
+            )
+            self.tabs_output.setCurrentWidget(self.bonus_tab)
+            self.statusBar().showMessage(self.tr("Анализ завершён"), 5000)
+            return
 
         analyzer = LexicalAnalyzer()
         tokens, lexical_errors = analyzer.analyze(text)
@@ -636,53 +718,12 @@ class MainWindow(QMainWindow):
             )
 
         if not syntax_errors:
-            self.statusBar().showMessage(self.tr("Синтаксических ошибок не обнаружено"), 5000)
+            self.run_bonus_analysis()
+            self.statusBar().showMessage(
+                self.tr("Синтаксических ошибок не обнаружено; доп. задание выполнено"), 5000
+            )
         else:
             self.statusBar().showMessage(self.tr("Анализ завершён"), 5000)
-
-    def run_llvm_analysis(self):
-        tab = self.current_editor_tab()
-        if not tab:
-            return
-
-        self.llvm_tab.clear()
-        self.errors_tab.clear()
-
-        text = tab.get_text()
-        filename = getattr(tab, "filename", None)
-        analyzer = ClangLLVMAnalyzer()
-
-        tools = discover_tools()
-        if not tools.ok:
-            msg = (
-                "Для анализа LLVM установите Clang/LLVM и (для PNG) Graphviz.\n\n"
-                "Ubuntu: sudo apt install clang llvm graphviz\n"
-                "Windows: https://releases.llvm.org/ + Graphviz\n\n"
-                "Не найдено: " + ", ".join(tools.missing())
-            )
-            self.llvm_tab.append_text(msg)
-            self.errors_tab.add_error(1, 1, msg, fragment="tools")
-            self.tabs_output.setCurrentWidget(self.llvm_tab)
-            self.statusBar().showMessage(self.tr("LLVM: инструменты не найдены"), 8000)
-            return
-
-        if filename and Path(filename).is_file():
-            report = analyzer.analyze_file(Path(filename))
-        else:
-            suffix = ".cpp" if filename and str(filename).lower().endswith(".cpp") else ".c"
-            report = analyzer.analyze_source_text(text, suffix=suffix)
-
-        self.llvm_tab.append_text(format_report(report))
-
-        for err in report.errors:
-            self.errors_tab.add_error(1, 1, err, fragment="llvm")
-
-        self.tabs_output.setCurrentWidget(self.llvm_tab)
-
-        if report.has_errors:
-            self.statusBar().showMessage(self.tr("LLVM: анализ с предупреждениями"), 5000)
-        else:
-            self.statusBar().showMessage(self.tr("LLVM: анализ завершён"), 5000)
 
     def show_about(self):
         AboutDialog(self).exec()
@@ -694,7 +735,8 @@ class MainWindow(QMainWindow):
             self.tr(
                 "Учебный редактор языкового процессора.\n"
                 "ЛР3–5: лексический и синтаксический анализ (Rust struct).\n"
-                "ЛР7: Clang AST, LLVM IR (-O0/-O2), opt, CFG (F5 для C-файлов)."
+                "ЛР7: собственный AST, TAC и 2 локальные оптимизации (F5 / F6).\n"
+                "Вкладка «КР: AST / TAC»."
             )
         )
 
