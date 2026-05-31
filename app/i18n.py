@@ -71,6 +71,13 @@ class Translator:
                 "оператор": "оператор",
                 "разделитель": "разделитель",
                 "комментарий": "комментарий",
+                "LLVM / IR": "LLVM / IR",
+                "Запустить анализ (Rust)": "Запустить анализ (Rust)",
+                "Анализ LLVM (Clang)": "Анализ LLVM (Clang)",
+                "Открыть пример struct_pass.c": "Открыть пример struct_pass.c",
+                "LLVM: анализ завершён": "LLVM: анализ завершён",
+                "LLVM: анализ с предупреждениями": "LLVM: анализ с предупреждениями",
+                "LLVM: инструменты не найдены": "LLVM: инструменты не найдены",
             },
             "en": {
                 "Текстовый редактор": "Text Editor",
@@ -141,6 +148,13 @@ class Translator:
                 "оператор": "operator",
                 "разделитель": "delimiter",
                 "комментарий": "comment",
+                "LLVM / IR": "LLVM / IR",
+                "Запустить анализ (Rust)": "Run analysis (Rust)",
+                "Анализ LLVM (Clang)": "LLVM analysis (Clang)",
+                "Открыть пример struct_pass.c": "Open struct_pass.c example",
+                "LLVM: анализ завершён": "LLVM: analysis completed",
+                "LLVM: анализ с предупреждениями": "LLVM: analysis completed with warnings",
+                "LLVM: инструменты не найдены": "LLVM: tools not found",
             }
         }
 

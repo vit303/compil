@@ -4,6 +4,8 @@ from PyQt6.QtCore import QRect, Qt, QSize
 from PyQt6.QtWidgets import QPlainTextEdit, QTextEdit
 
 from .syntax_highlighter import SyntaxHighlighter
+from .c_syntax_highlighter import CSyntaxHighlighter
+from .clang_llvm import is_c_source
 
 
 class LineNumberArea(QWidget):
@@ -111,7 +113,12 @@ class EditorTab(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
 
         self.editor = CodeEditor()
-        self.highlighter = SyntaxHighlighter(self.editor.document())
+        use_c = is_c_source(content, filename)
+        self.highlighter = (
+            CSyntaxHighlighter(self.editor.document())
+            if use_c
+            else SyntaxHighlighter(self.editor.document())
+        )
         self.editor.setPlainText(content)
 
         layout.addWidget(self.editor)

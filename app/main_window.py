@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from PyQt6.QtWidgets import (
     QMainWindow,
     QTabWidget,
@@ -24,6 +26,7 @@ from PyQt6.QtCore import Qt
 
 from .lexical_analyzer import LexicalAnalyzer
 from .syntax_analyzer import SyntaxAnalyzer
+from .clang_llvm import ClangLLVMAnalyzer, format_report, is_c_source, discover_tools
 
 from .editor_tab import EditorTab
 from .output_tab import OutputTab
@@ -82,9 +85,11 @@ class MainWindow(QMainWindow):
         self.tabs_output = QTabWidget()
 
         self.output_tab = OutputTab("Результаты", table=True, is_results_table=True, tr=self.tr)
+        self.llvm_tab = OutputTab("LLVM", table=False, tr=self.tr)
         self.errors_tab = OutputTab("Ошибки", table=True, tr=self.tr)
 
         self.tabs_output.addTab(self.output_tab, self.tr("Результаты"))
+        self.tabs_output.addTab(self.llvm_tab, self.tr("LLVM / IR"))
         self.tabs_output.addTab(self.errors_tab, self.tr("Ошибки"))
 
         self.errors_tab.table.itemClicked.connect(self.goto_error)
@@ -149,6 +154,12 @@ class MainWindow(QMainWindow):
         self.act_run = QAction(self)
         self.act_run.setShortcut("F5")
         self.act_run.triggered.connect(self.run_analysis)
+
+        self.act_run_llvm = QAction(self)
+        self.act_run_llvm.triggered.connect(self.run_llvm_analysis)
+
+        self.act_open_struct_example = QAction(self)
+        self.act_open_struct_example.triggered.connect(self.open_struct_example)
 
         self.act_about = QAction(self)
         self.act_about.triggered.connect(self.show_about)
@@ -221,6 +232,9 @@ class MainWindow(QMainWindow):
 
         self.m_pusk = mb.addMenu(self.tr("Пуск"))
         self.m_pusk.addAction(self.act_run)
+        self.m_pusk.addAction(self.act_run_llvm)
+        self.m_pusk.addSeparator()
+        self.m_pusk.addAction(self.act_open_struct_example)
 
         self.m_help = mb.addMenu(self.tr("Справка"))
         self.m_help.addAction(self.act_help)
@@ -355,15 +369,19 @@ class MainWindow(QMainWindow):
             return
 
         content = {
-            "Постановка задачи": 
-                "Разработать пользовательский интерфейс (GUI) для языкового процессора.\n\n"
-                "Требуется реализовать:\n"
-                "• Многооконный текстовый редактор с нумерацией строк\n"
-                "• Лексический анализатор\n"
-                "• Синтаксический анализатор\n"
-                "• Подсветку синтаксиса\n"
-                "• Вывод токенов и ошибок\n"
-                "• Поддержку русского и английского языка",
+            "Постановка задачи":
+                "Лабораторная работа 7. Clang и LLVM.\n\n"
+                "Общее задание:\n"
+                "• AST (clang -ast-dump)\n"
+                "• LLVM IR при -O0 и -O2\n"
+                "• Оптимизация IR (opt)\n"
+                "• CFG (opt -passes=dot-cfg, Graphviz)\n\n"
+                "Индивидуальный вариант (структуры):\n"
+                "• Передача struct Point в функцию sum\n"
+                "• Сравнение IR до/после -O2\n"
+                "• CFG для sum и main\n"
+                "• Версия с __attribute__((always_inline))\n\n"
+                "Запуск: F5 для C-файла или меню Пуск → Анализ LLVM.",
 
             "Грамматика": 
                 "<START> ::= struct <IDENTIFIER> { <FIELD_LIST> } ;\n"
@@ -377,11 +395,10 @@ class MainWindow(QMainWindow):
                 "• Лексический анализ — на основе регулярных выражений и ручного разбора\n"
                 "• Синтаксический анализ — метод рекурсивного спуска (Recursive Descent)",
 
-            "Тестовый пример": 
-                "struct Point {\n"
-                "    x: i32,\n"
-                "    y: i32\n"
-                "};",
+            "Тестовый пример":
+                "Пример ЛР7 (C, struct): examples/lab7/struct_pass.c\n\n"
+                "Меню Пуск → Открыть пример struct (struct_pass.c)\n"
+                "или общий пример: examples/lab7/main.c",
 
             "Список литературы": 
                 "1. Ахо А.В., Ульман Дж.Д. Теория синтаксического анализа, трансляции и компиляции\n"
@@ -443,6 +460,10 @@ class MainWindow(QMainWindow):
         self.act_copy.setText(self.tr("Копировать"))
         self.act_paste.setText(self.tr("Вставить"))
 
+        self.act_run.setText(self.tr("Запустить анализ (Rust)"))
+        self.act_run_llvm.setText(self.tr("Анализ LLVM (Clang)"))
+        self.act_open_struct_example.setText(self.tr("Открыть пример struct_pass.c"))
+
         self.act_font_inc.setText(self.tr("Увеличить шрифт"))
         self.act_font_dec.setText(self.tr("Уменьшить шрифт"))
 
@@ -453,7 +474,8 @@ class MainWindow(QMainWindow):
         self.act_about.setText(self.tr("О программе"))
 
         self.tabs_output.setTabText(0, self.tr("Результаты"))
-        self.tabs_output.setTabText(1, self.tr("Ошибки"))
+        self.tabs_output.setTabText(1, self.tr("LLVM / IR"))
+        self.tabs_output.setTabText(2, self.tr("Ошибки"))
 
         for i in range(self.tabs_editor.count()):
             tab = self.tabs_editor.widget(i)
@@ -502,7 +524,10 @@ class MainWindow(QMainWindow):
 
     def open_file(self):
         path, _ = QFileDialog.getOpenFileName(
-            self, self.tr("Открыть файл"), "", "Все файлы (*);;Текстовые файлы (*.txt *.lang)"
+            self,
+            self.tr("Открыть файл"),
+            "",
+            "C/C++ (*.c *.cpp *.h);;Rust/текст (*.txt *.lang);;Все файлы (*)",
         )
         if path:
             try:
@@ -562,19 +587,37 @@ class MainWindow(QMainWindow):
         if tab and hasattr(tab, 'scale_font'):
             tab.scale_font(delta)
 
-        current_output = self.tabs_output.currentWidget()
-        if current_output and hasattr(current_output, 'scale_font'):
-            current_output.scale_font(delta)
+        for i in range(self.tabs_output.count()):
+            w = self.tabs_output.widget(i)
+            if w and hasattr(w, "scale_font"):
+                w.scale_font(delta)
+
+    def _project_root(self) -> Path:
+        return Path(__file__).resolve().parent.parent
+
+    def open_struct_example(self):
+        path = self._project_root() / "examples" / "lab7" / "struct_pass.c"
+        if not path.is_file():
+            QMessageBox.warning(self, self.tr("Ошибка"), f"Не найден файл:\n{path}")
+            return
+        content = path.read_text(encoding="utf-8")
+        self.add_new_tab(str(path), content)
 
     def run_analysis(self):
         tab = self.current_editor_tab()
         if not tab:
             return
 
+        text = tab.get_text()
+        filename = getattr(tab, "filename", None)
+
+        if is_c_source(text, filename):
+            self.run_llvm_analysis()
+            return
+
         self.output_tab.clear()
         self.errors_tab.clear()
-
-        text = tab.get_text()
+        self.llvm_tab.clear()
 
         analyzer = LexicalAnalyzer()
         tokens, lexical_errors = analyzer.analyze(text)
@@ -589,13 +632,57 @@ class MainWindow(QMainWindow):
                 err.line,
                 err.col,
                 err.message,
-                fragment=err.fragment
+                fragment=err.fragment,
             )
 
         if not syntax_errors:
             self.statusBar().showMessage(self.tr("Синтаксических ошибок не обнаружено"), 5000)
         else:
             self.statusBar().showMessage(self.tr("Анализ завершён"), 5000)
+
+    def run_llvm_analysis(self):
+        tab = self.current_editor_tab()
+        if not tab:
+            return
+
+        self.llvm_tab.clear()
+        self.errors_tab.clear()
+
+        text = tab.get_text()
+        filename = getattr(tab, "filename", None)
+        analyzer = ClangLLVMAnalyzer()
+
+        tools = discover_tools()
+        if not tools.ok:
+            msg = (
+                "Для анализа LLVM установите Clang/LLVM и (для PNG) Graphviz.\n\n"
+                "Ubuntu: sudo apt install clang llvm graphviz\n"
+                "Windows: https://releases.llvm.org/ + Graphviz\n\n"
+                "Не найдено: " + ", ".join(tools.missing())
+            )
+            self.llvm_tab.append_text(msg)
+            self.errors_tab.add_error(1, 1, msg, fragment="tools")
+            self.tabs_output.setCurrentWidget(self.llvm_tab)
+            self.statusBar().showMessage(self.tr("LLVM: инструменты не найдены"), 8000)
+            return
+
+        if filename and Path(filename).is_file():
+            report = analyzer.analyze_file(Path(filename))
+        else:
+            suffix = ".cpp" if filename and str(filename).lower().endswith(".cpp") else ".c"
+            report = analyzer.analyze_source_text(text, suffix=suffix)
+
+        self.llvm_tab.append_text(format_report(report))
+
+        for err in report.errors:
+            self.errors_tab.add_error(1, 1, err, fragment="llvm")
+
+        self.tabs_output.setCurrentWidget(self.llvm_tab)
+
+        if report.has_errors:
+            self.statusBar().showMessage(self.tr("LLVM: анализ с предупреждениями"), 5000)
+        else:
+            self.statusBar().showMessage(self.tr("LLVM: анализ завершён"), 5000)
 
     def show_about(self):
         AboutDialog(self).exec()
@@ -605,8 +692,9 @@ class MainWindow(QMainWindow):
             self,
             self.tr("Справка"),
             self.tr(
-                "Учебный редактор для языкового процессора.\n"
-                "Синтаксический анализ: посимвольная грамматика struct."
+                "Учебный редактор языкового процессора.\n"
+                "ЛР3–5: лексический и синтаксический анализ (Rust struct).\n"
+                "ЛР7: Clang AST, LLVM IR (-O0/-O2), opt, CFG (F5 для C-файлов)."
             )
         )
 
